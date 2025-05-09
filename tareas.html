@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lista de Tareas con Firebase</title>
+    
+    <!-- Cargar Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+
+
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; }
+        #tareas { max-width: 400px; margin: auto; }
+        ul { list-style: none; padding: 0; }
+        li { background: #f4f4f4; margin: 5px; padding: 8px; display: flex; justify-content: space-between; }
+        button { background: red; color: white; border: none; padding: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h2>Lista de Tareas</h2>
+    <input type="text" id="nuevaTarea" placeholder="Añadir nueva tarea">
+    <button onclick="agregarTarea()">Añadir</button>
+    
+    <div id="tareas">
+        <ul id="listaTareas"></ul>
+    </div>
+
+    <script>
+        // Configurar Firebase
+        const firebaseConfig = {
+            apiKey: "TU_API_KEY",
+            authDomain: "nelo-tarefas.firebaseapp.com",
+            projectId: "nelo-tarefas",
+            storageBucket: "nelo-tarefas.appspot.com",
+            messagingSenderId: "1013704581791",
+            appId: "1:1013704581791:web:49109eec8f40364e2778aa"
+        };
+
+        // Inicializar Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        // Agregar tarea a Firebase
+        function agregarTarea() {
+            let tarea = document.getElementById("nuevaTarea").value;
+            console.log("Intentando añadir tarea:", tarea); // Verificación en consola
+
+            if (tarea) {
+                db.collection("tareas").add({ texto: tarea })
+                .then(() => {
+                    console.log("Tarea guardada correctamente.");
+                    document.getElementById("nuevaTarea").value = "";
+                })
+                .catch(error => console.error("Error al guardar tarea:", error));
+            }
+        }
+
+        // Cargar tareas en tiempo real desde Firebase
+        db.collection("tareas").onSnapshot(snapshot => {
+            let lista = document.getElementById("listaTareas");
+            lista.innerHTML = "";
+            snapshot.docs.forEach(doc => {
+                let li = document.createElement("li");
+                li.innerHTML = doc.data().texto + ` <button onclick="eliminarTarea('${doc.id}')">Eliminar</button>`;
+                lista.appendChild(li);
+            });
+        });
+
+        // Eliminar tarea de Firebase
+        function eliminarTarea(id) {
+            db.collection("tareas").doc(id).delete()
+            .then(() => console.log("Tarea eliminada correctamente."))
+            .catch(error => console.error("Error al eliminar tarea:", error));
+        }
+    </script>
+	<script>
+    async function actualizarEventoDiarioGoogleCalendar() {
+        const apiKey = "AIzaSyCQ3axyGsS3aNm7rW_SVG0dhzQraxvOrHg"; // Reemplázalo con tu clave API
+        const calendarId = "primary"; // Calendario principal
+
+        // Obtener todas las tareas pendientes de Firebase
+        const snapshot = await db.collection("tareas").get();
+        let listaTareas = snapshot.docs.map(doc => `- ${doc.data().texto}`).join("\n");
+
+        // Definir fecha y hora del evento
+        const hoy = new Date();
+        hoy.setHours(8, 0, 0, 0); // Establecer la hora a las 8:00 AM
+
+        // Crear evento del día
+        const nuevoEvento = {
+            summary: `Tareas Pendientes - ${hoy.toLocaleDateString()}`,
+            description: listaTareas,
+            start: { dateTime: hoy.toISOString() },
+            end: { dateTime: new Date(hoy.getTime() + 3600000).toISOString() } // 1 hora de duración
+        };
+
+        // Buscar eventos anteriores con el mismo título
+        const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events?key=${apiKey}`);
+        const data = await response.json();
+        const eventosViejos = data.items.filter(e => e.summary.includes("Tareas Pendientes"));
+
+        // ❌ Eliminar eventos de días anteriores
+        for (const eventoViejo of eventosViejos) {
+            const fechaEvento = new Date(eventoViejo.start.dateTime);
+            if (fechaEvento < hoy) {
+                await fetch(`https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events/${eventoViejo.id}?key=${apiKey}`, {
+                    method: "DELETE"
+                });
+            }
+        }
+
+        // ✅ Crear nuevo evento con tareas pendientes
+        await fetch(`https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events?key=${apiKey}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(nuevoEvento)
+        });
+
+        console.log("Evento diario actualizado en Google Calendar!");
+    }
+</script>
+<script>
+    window.onload = function() {
+        actualizarEventoDiarioGoogleCalendar();
+    };
+</script>
+</body>
+</html>
+
+</body>
+</html>
+
+</body>
+</html>
+
